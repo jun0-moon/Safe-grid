@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  db:
+    # PostGIS가 기본 탑재된 공식 이미지 사용
+    image: postgis/postgis:15-3.4
+    container_name: safegrid-postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=safegrid
+      - POSTGRES_PASSWORD=safegrid_pw!
+      - POSTGRES_DB=safegrid_db
+    ports:
+      - "5432:5432"
+    volumes:
+      # 컨테이너가 꺼져도 데이터가 날아가지 않도록 로컬에 저장
+      - ./postgres_data:/var/lib/postgresql/data
