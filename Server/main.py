@@ -10,16 +10,16 @@ import os
 from dotenv import load_dotenv
 from risk_engine import calculate_risk
 
-# .env íŒŒì¼ì—ì„œ í™˜ê²½ë³€ìˆ˜ ë¡œë“œ (.env ê°’ì„ ìµœìš°ì„ ìœ¼ë¡œ ì ìš©)
+# .env ÆÄÀÏ¿¡¼­ È¯°æº¯¼ö ·Îµå (.env °ªÀ» ÃÖ¿ì¼±À¸·Î Àû¿ë)
 load_dotenv(override=True)
 
-# SKT Open API ì„¤ì •
-SKT_APP_KEY = os.getenv("SKT_APP_KEY", "")  # .env íŒŒì¼ì—ì„œ appKey ë¡œë“œ
+# SKT Open API ¼³Á¤
+SKT_APP_KEY = os.getenv("SKT_APP_KEY", "")  # .env ÆÄÀÏ¿¡¼­ appKey ·Îµå
 SKT_CONGESTION_URL = "https://apis.openapi.sk.com/puzzle/place/congestion/rltm/pois"
 
 app = FastAPI(title="Safe-Grid API Server")
 
-# CORS ì„¤ì • (í”„ë¡ íŠ¸ì—”ë“œ í†µì‹  í—ˆìš©)
+# CORS ¼³Á¤ (ÇÁ·ĞÆ®¿£µå Åë½Å Çã¿ë)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,23 +28,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ë°ì´í„° ëª¨ë¸ ì •ì˜
+# µ¥ÀÌÅÍ ¸ğµ¨ Á¤ÀÇ
 class UserLocation(BaseModel):
     user_id: str
     latitude: float
     longitude: float
-    direction: float   # ë™ì„  ë²¡í„° ìœ„í—˜ë„ V (ì´ë™ ë°©í–¥ ì¶©ëŒ/ê¼¬ì„ ì •ë„, 0~1)
-    d_skt: float = 0.0     # SKT í˜¼ì¡ë„ ê¸°ë°˜ êµ°ì¤‘ ë°€ë„ (ëª…/ã¡)
-    slope: float = 0.0     # ê²½ì‚¬ë„ ìœ„í—˜ í˜ë„í‹° (0~1)
-    weather: float = 0.0   # ë‚ ì”¨ ìœ„í—˜ í˜ë„í‹° (0~1)
+    direction: float   # µ¿¼± º¤ÅÍ À§Çèµµ V (ÀÌµ¿ ¹æÇâ Ãæµ¹/²¿ÀÓ Á¤µµ, 0~1)
+    d_skt: float = 0.0     # SKT È¥Àâµµ ±â¹İ ±ºÁß ¹Ğµµ (¸í/§³)
+    slope: float = 0.0     # °æ»çµµ À§Çè Æä³ÎÆ¼ (0~1)
+    weather: float = 0.0   # ³¯¾¾ À§Çè Æä³ÎÆ¼ (0~1)
 
-# 1. ì‹¤ì‹œê°„ ìœ„ì¹˜ ìˆ˜ì§‘ ë° ìœ„í—˜ë„ ì¡°íšŒ
+# 1. ½Ç½Ã°£ À§Ä¡ ¼öÁı ¹× À§Çèµµ Á¶È¸
 @app.post("/api/v1/location")
 async def update_location(data: UserLocation):
-    # TODO: Redisì— ìœ„ì¹˜ ë°ì´í„° ì €ì¥
-    # TODO: d_sktë¥¼ SKT í˜¼ì¡ë„ APIì—ì„œ ìë™ ì¡°íšŒí•˜ë„ë¡ ê°œì„ 
+    # TODO: Redis¿¡ À§Ä¡ µ¥ÀÌÅÍ ÀúÀå
+    # TODO: d_skt¸¦ SKT È¥Àâµµ API¿¡¼­ ÀÚµ¿ Á¶È¸ÇÏµµ·Ï °³¼±
 
-    # í™˜ê²½ ì¦í­ ëª¨ë¸ë¡œ ìœ„í—˜ë„ ì‚°ì¶œ
+    # È¯°æ ÁõÆø ¸ğµ¨·Î À§Çèµµ »êÃâ
     risk_score = calculate_risk(
         d_skt=data.d_skt,
         vector=data.direction,
@@ -52,7 +52,7 @@ async def update_location(data: UserLocation):
         weather=data.weather,
     )
 
-    # ìœ„í—˜ë„ ì„ê³„ê°’ ê¸°ë°˜ ë ˆë“œì¡´ íŒì • (ì˜ˆ: 0.7 ì´ìƒ)
+    # À§Çèµµ ÀÓ°è°ª ±â¹İ ·¹µåÁ¸ ÆÇÁ¤ (¿¹: 0.7 ÀÌ»ó)
     is_red_zone = risk_score >= 0.7
 
     return {
@@ -61,30 +61,30 @@ async def update_location(data: UserLocation):
         "is_red_zone": is_red_zone,
     }
 
-# 2. ì „ì²´ ìœ„í—˜ ì§€ë„ ë°ì´í„° (Heatmapìš©)
+# 2. ÀüÃ¼ À§Çè Áöµµ µ¥ÀÌÅÍ (Heatmap¿ë)
 @app.get("/api/v1/risk-map")
 async def get_risk_map():
-    # TODO: PostGISì—ì„œ ê·¸ë¦¬ë“œë³„ ìœ„í—˜ë„(R)ë¥¼ GeoJSON í˜•íƒœë¡œ ë°˜í™˜
+    # TODO: PostGIS¿¡¼­ ±×¸®µåº° À§Çèµµ(R)¸¦ GeoJSON ÇüÅÂ·Î ¹İÈ¯
     return {"grid_data": []}
 
-# 3. ì‹¤ì‹œê°„ ì¥ì†Œ í˜¼ì¡ë„ ì¡°íšŒ (SKT Open API)
+# 3. ½Ç½Ã°£ Àå¼Ò È¥Àâµµ Á¶È¸ (SKT Open API)
 @app.get("/api/v1/congestion/{poi_id}")
 async def get_place_congestion(
     poi_id: str,
-    lat: Optional[float] = Query(None, description="ì£¼ë³€ í˜¼ì¡ë„ ì¤‘ì‹¬ ìœ„ë„ (WGS84)"),
-    lng: Optional[float] = Query(None, description="ì£¼ë³€ í˜¼ì¡ë„ ì¤‘ì‹¬ ê²½ë„ (WGS84)"),
+    lat: Optional[float] = Query(None, description="ÁÖº¯ È¥Àâµµ Áß½É À§µµ (WGS84)"),
+    lng: Optional[float] = Query(None, description="ÁÖº¯ È¥Àâµµ Áß½É °æµµ (WGS84)"),
 ):
     """
-    SKT ì‹¤ì‹œê°„ ì¥ì†Œ í˜¼ì¡ë„ APIë¥¼ í˜¸ì¶œí•˜ì—¬ ê²°ê³¼ë¥¼ ë°˜í™˜í•©ë‹ˆë‹¤.
+    SKT ½Ç½Ã°£ Àå¼Ò È¥Àâµµ API¸¦ È£ÃâÇÏ¿© °á°ú¸¦ ¹İÈ¯ÇÕ´Ï´Ù.
 
-    - **poi_id**: ê´€ì‹¬ ì¥ì†Œ(POI) ID (ì˜ˆ: 10067845 = ë”í˜„ëŒ€ì„œìš¸)
-    - **lat/lng**: ìœ„ê²½ë„ë¥¼ ì¶”ê°€í•˜ë©´ ì£¼ë³€(350mÃ—350m) í˜¼ì¡ë„ë„ í•¨ê»˜ ì¡°íšŒ
+    - **poi_id**: °ü½É Àå¼Ò(POI) ID (¿¹: 10067845 = ´õÇö´ë¼­¿ï)
+    - **lat/lng**: À§°æµµ¸¦ Ãß°¡ÇÏ¸é ÁÖº¯(350m¡¿350m) È¥Àâµµµµ ÇÔ²² Á¶È¸
 
-    í˜¼ì¡ë„ ë ˆë²¨:
-      1: ì—¬ìœ , 2: ë³´í†µ, 3: í˜¼ì¡, 4: ë§¤ìš° í˜¼ì¡
+    È¥Àâµµ ·¹º§:
+      1: ¿©À¯, 2: º¸Åë, 3: È¥Àâ, 4: ¸Å¿ì È¥Àâ
     """
     if not SKT_APP_KEY:
-        raise HTTPException(status_code=500, detail="SKT_APP_KEY í™˜ê²½ë³€ìˆ˜ê°€ ì„¤ì •ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤.")
+        raise HTTPException(status_code=500, detail="SKT_APP_KEY È¯°æº¯¼ö°¡ ¼³Á¤µÇÁö ¾Ê¾Ò½À´Ï´Ù.")
 
     url = f"{SKT_CONGESTION_URL}/{poi_id}"
     headers = {
@@ -104,33 +104,33 @@ async def get_place_congestion(
         except httpx.HTTPStatusError as e:
             raise HTTPException(
                 status_code=e.response.status_code,
-                detail=f"SKT API ìš”ì²­ ì‹¤íŒ¨: {e.response.text}",
+                detail=f"SKT API ¿äÃ» ½ÇÆĞ: {e.response.text}",
             )
         except httpx.RequestError as e:
             raise HTTPException(
                 status_code=502,
-                detail=f"SKT API ì—°ê²° ì˜¤ë¥˜: {str(e)}",
+                detail=f"SKT API ¿¬°á ¿À·ù: {str(e)}",
             )
 
     data = response.json()
 
-    # SKT API ì‘ë‹µ status í™•ì¸
+    # SKT API ÀÀ´ä status È®ÀÎ
     status = data.get("status", {})
     if status.get("code") != "00":
         raise HTTPException(
             status_code=502,
-            detail=f"SKT API ì˜¤ë¥˜ - code: {status.get('code')}, message: {status.get('message')}",
+            detail=f"SKT API ¿À·ù - code: {status.get('code')}, message: {status.get('message')}",
         )
 
-    # ì‘ë‹µ íŒŒì‹±
+    # ÀÀ´ä ÆÄ½Ì
     contents = data.get("contents", {})
     rltm_list = contents.get("rltm", [])
 
     congestion_level_labels = {
-        1: "ì—¬ìœ ",
-        2: "ë³´í†µ",
-        3: "í˜¼ì¡",
-        4: "ë§¤ìš° í˜¼ì¡",
+        1: "¿©À¯",
+        2: "º¸Åë",
+        3: "È¥Àâ",
+        4: "¸Å¿ì È¥Àâ",
     }
 
     result = {
@@ -138,10 +138,10 @@ async def get_place_congestion(
         "poi_name": contents.get("poiName"),
         "congestion_data": [
             {
-                "type": "ì¥ì†Œ í˜¼ì¡ë„" if item.get("type") == 1 else "ì£¼ë³€ í˜¼ì¡ë„",
+                "type": "Àå¼Ò È¥Àâµµ" if item.get("type") == 1 else "ÁÖº¯ È¥Àâµµ",
                 "congestion": item.get("congestion"),
                 "congestion_level": item.get("congestionLevel"),
-                "congestion_label": congestion_level_labels.get(item.get("congestionLevel"), "ì•Œ ìˆ˜ ì—†ìŒ"),
+                "congestion_label": congestion_level_labels.get(item.get("congestionLevel"), "¾Ë ¼ö ¾øÀ½"),
                 "datetime": item.get("datetime"),
             }
             for item in rltm_list
@@ -150,22 +150,22 @@ async def get_place_congestion(
     return result
 
 
-# 4. ì™¸ë¶€ API ë°ì´í„° ê°±ì‹  (Background Task)
+# 4. ¿ÜºÎ API µ¥ÀÌÅÍ °»½Å (Background Task)
 async def fetch_external_data():
-    """SKT OpenAPI í˜¼ì¡ë„ ë°ì´í„° ë° ê¸°ìƒì²­ API ë°ì´í„°ë¥¼ ê°±ì‹ í•©ë‹ˆë‹¤."""
-    # TODO: ì£¼ê¸°ì ìœ¼ë¡œ ì£¼ìš” POIë“¤ì˜ í˜¼ì¡ë„ë¥¼ ê°€ì ¸ì™€ DB/ìºì‹œì— ì €ì¥
+    """SKT OpenAPI È¥Àâµµ µ¥ÀÌÅÍ ¹× ±â»óÃ» API µ¥ÀÌÅÍ¸¦ °»½ÅÇÕ´Ï´Ù."""
+    # TODO: ÁÖ±âÀûÀ¸·Î ÁÖ¿ä POIµéÀÇ È¥Àâµµ¸¦ °¡Á®¿Í DB/Ä³½Ã¿¡ ÀúÀå
     print("Fetching SKT congestion and Weather data...")
 
 @app.on_event("startup")
 async def startup_event():
-    # ì„œë²„ ì‹œì‘ ì‹œ ì£¼ê¸°ì ì¸ ë°ì´í„° í˜¸ì¶œ ìŠ¤ì¼€ì¤„ëŸ¬ ë“±ë¡ ê°€ëŠ¥
+    # ¼­¹ö ½ÃÀÛ ½Ã ÁÖ±âÀûÀÎ µ¥ÀÌÅÍ È£Ãâ ½ºÄÉÁÙ·¯ µî·Ï °¡´É
     pass
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return Response(status_code=204)
 
-# ì •ì  íŒŒì¼ ì„œë¹™ (í”„ë¡ íŠ¸ì—”ë“œ - test_web í´ë” ì‚¬ìš©)
+# Á¤Àû ÆÄÀÏ ¼­ºù (ÇÁ·ĞÆ®¿£µå - test_web Æú´õ »ç¿ë)
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test_web")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
