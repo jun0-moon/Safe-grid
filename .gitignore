@@ -1,3 +1,8 @@
 .venv
 .env
 safe-grid-frontend/node_modules
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
