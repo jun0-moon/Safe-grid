@@ -1,4 +1,5 @@
-// 1. 필요한 도구들을 추가로 가져옵니다! (Polyline, CustomOverlayMap, ZoomControl)
+// 1. 필요한 도구들을 추가로 가져옵니다!
+import { useRef } from "react"; // 💡 [추가] React에서 useRef 도구를 가져옵니다.
 import {
   Map,
   MapMarker,
@@ -6,6 +7,7 @@ import {
   Polyline,
   CustomOverlayMap,
   ZoomControl,
+  DrawingManager, // 💡 [추가] 그리기 도구 관리자 추가
   useKakaoLoader,
 } from "react-kakao-maps-sdk";
 
@@ -32,9 +34,59 @@ const routePath = [
 
 function App() {
   const [loading, error] = useKakaoLoader({
-    appkey: "22ff690840af34865670afb94e0d7c3a",
+    appkey: "22ff690840af34865670afb94e0d7c3a", // 본인 API KEY 유지!
     libraries: ["clusterer", "drawing", "services"],
   });
+
+  // 💡 [추가] 그리기 도구를 조종할 리모컨 역할
+  const managerRef = useRef(null);
+
+  // 💡 [추가] '영역 그리기' 시작 버튼 함수
+  const selectDrawPolygon = () => {
+    const manager = managerRef.current;
+    if (manager) {
+      manager.cancel(); // 혹시 진행 중인 다른 그리기가 있으면 취소
+      manager.select(window.kakao.maps.drawing.OverlayType.POLYGON); // 다각형 그리기 모드 켜기!
+    }
+  };
+
+  // 💡 [수정] '데이터 뽑아내기' 버튼 함수 (시뮬레이션 기능 추가)
+  const getPolygonData = () => {
+    const manager = managerRef.current;
+    if (manager) {
+      const data = manager.getData();
+      const polygonData = data[window.kakao.maps.drawing.OverlayType.POLYGON];
+
+      if (polygonData && polygonData.length > 0) {
+        // 1. 좌표 추출 (기존과 동일)
+        const coords = polygonData[0].points;
+        console.log("🎯 백엔드에 보낼 추출된 좌표들:", coords);
+
+        // 2. [시뮬레이션] 백엔드에서 인구수를 계산해서 돌려줬다고 가정해 봅시다!
+        // (0에서 30 사이의 랜덤한 숫자를 뽑아냅니다)
+        const simulatedPeopleCount = Math.floor(Math.random() * 31);
+
+        // 3. 뽑아낸 인원수로 색상을 판별합니다.
+        const targetColor = getDensityColor(simulatedPeopleCount);
+
+        // 4. 교수님께 보여드릴 멋진 결과 창 띄우기
+        alert(
+          `[분석 완료! 📊]\n\n백엔드 분석 결과, 지정하신 다각형 영역 안에는 약 ${simulatedPeopleCount}명의 인구가 밀집되어 있습니다.\n\n👉 따라서 이 영역은 좌측 범례 기준에 따라 '${targetColor}'으로 칠해져야 합니다!`,
+        );
+      } else {
+        alert("먼저 지도 위에 다각형을 그려주세요!");
+      }
+    }
+  }; // 💡 [추가] 인원수에 따라 사이드바 기준에 맞는 색상을 결정해 주는 함수
+  const getDensityColor = (count) => {
+    if (count === 0) return "하얀색 (#FFFFFF)";
+    if (count >= 1 && count <= 5) return "연한 살구색 (#FFD1A9)";
+    if (count >= 6 && count <= 10) return "주황색 (#FF9E5E)";
+    if (count >= 11 && count <= 15) return "진한 주황색 (#FF5A36)";
+    if (count >= 16 && count <= 25) return "빨간색 (#E83845)";
+    if (count >= 26) return "진한 빨간색 (#BA1115)";
+    return "알 수 없음";
+  };
 
   if (loading) return <div>지도를 열심히 가져오는 중입니다... ⏳</div>;
   if (error)
@@ -61,9 +113,44 @@ function App() {
       >
         <div style={{ padding: "30px 20px", borderBottom: "2px solid #333" }}>
           <h2 style={{ margin: "0 0 10px 0", fontSize: "20px" }}>동성로</h2>
-          <p style={{ margin: "0 0 30px 0", fontSize: "14px", color: "#555" }}>
+          <p style={{ margin: "0 0 20px 0", fontSize: "14px", color: "#555" }}>
             동성로 위험구역 정보
           </p>
+
+          {/* 💡 [추가] 교수님이 원하셨던 영역 지정 버튼 UI */}
+          <button
+            onClick={selectDrawPolygon}
+            style={{
+              width: "100%",
+              marginBottom: "10px",
+              padding: "10px",
+              backgroundColor: "#0054FF",
+              color: "white",
+              border: "none",
+              borderRadius: "5px",
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}
+          >
+            ✏️ 임의 영역 그리기
+          </button>
+          <button
+            onClick={getPolygonData}
+            style={{
+              width: "100%",
+              marginBottom: "25px",
+              padding: "10px",
+              backgroundColor: "#333",
+              color: "white",
+              border: "none",
+              borderRadius: "5px",
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}
+          >
+            🔍 영역 데이터 뽑아내기
+          </button>
+
           <p
             style={{
               margin: "0 0 5px 0",
@@ -109,8 +196,24 @@ function App() {
           style={{ width: "100%", height: "100%" }}
           level={4}
         >
-          {/* 💡 3. 확대/축소 버튼 추가 */}
-          {/* window.kakao가 로드된 이후에만 ZoomControl을 렌더링하도록 안전장치 추가 */}
+          {/* 💡 [추가] 사용자가 영역을 그릴 수 있게 해주는 투명한 도화지 */}
+          {window.kakao && window.kakao.maps && (
+            <DrawingManager
+              ref={managerRef}
+              drawingMode={[window.kakao.maps.drawing.OverlayType.POLYGON]} // 다각형만 그리기 허용
+              guideTooltip={["draw", "drag", "edit"]} // 마우스 따라다니는 도움말
+              polygonOptions={{
+                draggable: true, // 다 그리고 나서 도형 이동 가능
+                removable: true, // 다 그리고 나서 삭제 가능
+                editable: true, // 다 그리고 나서 모양 수정 가능
+                strokeColor: "#39f",
+                fillColor: "#39f",
+                fillOpacity: 0.5,
+              }}
+            />
+          )}
+
+          {/* 3. 확대/축소 버튼 추가 */}
           {window.kakao && window.kakao.maps && (
             <ZoomControl
               position={window.kakao.maps.ControlPosition.BOTTOMRIGHT}
@@ -133,19 +236,19 @@ function App() {
             />
           ))}
 
-          {/* 💡 4. 파란색 경로 선 (Polyline) 그리기 */}
+          {/* 4. 파란색 경로 선 (Polyline) 그리기 */}
           <Polyline
             path={routePath}
-            strokeWeight={5} // 선 두께
-            strokeColor={"#0054FF"} // 선 색깔 (파란색)
-            strokeOpacity={0.9} // 투명도
-            strokeStyle={"solid"} // 실선
+            strokeWeight={5}
+            strokeColor={"#0054FF"}
+            strokeOpacity={0.9}
+            strokeStyle={"solid"}
           />
 
-          {/* 💡 5. '걸어서 8분' 툴팁 말풍선 (CustomOverlay) 띄우기 */}
+          {/* 5. '걸어서 8분' 툴팁 말풍선 */}
           <CustomOverlayMap
-            position={{ lat: 35.8705, lng: 128.5948 }} // 경로 중간 지점에 띄움
-            yAnchor={1.5} // 마커(좌표)보다 살짝 위에 뜨도록 위치 조정
+            position={{ lat: 35.8705, lng: 128.5948 }}
+            yAnchor={1.5}
           >
             <div
               style={{
@@ -160,47 +263,43 @@ function App() {
             >
               걸어서 8분
             </div>
-            {/* ... 기존 폴리곤, 폴리라인, 걸어서 8분 코드 ... */}
+          </CustomOverlayMap>
 
-            {/* 💡 6. 출발지 배지 표시 (파란색) */}
-            <CustomOverlayMap
-              position={routePath[0]} // 배열의 첫 번째 좌표가 출발지!
-              yAnchor={2.5} // 선에 가려지지 않게 위로 살짝 띄움
+          {/* 6. 출발지 배지 표시 (파란색) */}
+          <CustomOverlayMap position={routePath[0]} yAnchor={2.5}>
+            <div
+              style={{
+                padding: "3px 8px",
+                backgroundColor: "#0054FF",
+                color: "white",
+                borderRadius: "12px",
+                fontSize: "12px",
+                fontWeight: "bold",
+                boxShadow: "0px 2px 4px rgba(0,0,0,0.3)",
+              }}
             >
-              <div
-                style={{
-                  padding: "3px 8px",
-                  backgroundColor: "#0054FF",
-                  color: "white",
-                  borderRadius: "12px",
-                  fontSize: "12px",
-                  fontWeight: "bold",
-                  boxShadow: "0px 2px 4px rgba(0,0,0,0.3)",
-                }}
-              >
-                출발
-              </div>
-            </CustomOverlayMap>
+              출발
+            </div>
+          </CustomOverlayMap>
 
-            {/* 💡 7. 도착지 배지 표시 (빨간색) */}
-            <CustomOverlayMap
-              position={routePath[routePath.length - 1]} // 배열의 마지막 좌표가 도착지!
-              yAnchor={2.5}
+          {/* 7. 도착지 배지 표시 (빨간색) */}
+          <CustomOverlayMap
+            position={routePath[routePath.length - 1]}
+            yAnchor={2.5}
+          >
+            <div
+              style={{
+                padding: "3px 8px",
+                backgroundColor: "#FF0000",
+                color: "white",
+                borderRadius: "12px",
+                fontSize: "12px",
+                fontWeight: "bold",
+                boxShadow: "0px 2px 4px rgba(0,0,0,0.3)",
+              }}
             >
-              <div
-                style={{
-                  padding: "3px 8px",
-                  backgroundColor: "#FF0000",
-                  color: "white",
-                  borderRadius: "12px",
-                  fontSize: "12px",
-                  fontWeight: "bold",
-                  boxShadow: "0px 2px 4px rgba(0,0,0,0.3)",
-                }}
-              >
-                도착
-              </div>
-            </CustomOverlayMap>
+              도착
+            </div>
           </CustomOverlayMap>
         </Map>
       </div>
