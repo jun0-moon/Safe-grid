@@ -60,7 +60,7 @@ function App() {
     return "#39f";
   };
 
-  const getPolygonData = () => {
+  const getPolygonData = async () => {
     const manager = managerRef.current;
     if (manager) {
       const data = manager.getData();
@@ -74,21 +74,34 @@ function App() {
           lng: point.x,
         }));
 
-        const simulatedPeopleCount = Math.floor(Math.random() * 31);
-        const targetColor = getDensityHexColor(simulatedPeopleCount);
+        try {
+          // 서버에서 위험도 데이터 받아오기
+          const riskData = await api.evaluateZoneRisk(formattedPath);
+          console.log("서버 응답:", riskData);
 
-        setAnalyzedZones((prev) => [
-          ...prev,
-          {
-            path: formattedPath,
-            color: targetColor,
-            count: simulatedPeopleCount,
-          },
-        ]);
+          // 서버에서 반환한 값이 있으면 사용, 없으면 임시값 사용
+          const riskValue =
+            riskData.risk_score ||
+            riskData.congestion ||
+            Math.floor(Math.random() * 31);
+          const targetColor = getDensityHexColor(riskValue);
 
-        alert(
-          `[분석 완료! 📊]\n예상 밀집 인구: ${simulatedPeopleCount}명\n밀집도 기준에 맞춰 지도에 영역이 칠해졌습니다!`,
-        );
+          setAnalyzedZones((prev) => [
+            ...prev,
+            {
+              path: formattedPath,
+              color: targetColor,
+              count: riskValue,
+            },
+          ]);
+
+          alert(
+            `[분석 완료! 📊]\n위험도/밀집도: ${riskValue}\n지도에 영역이 칠해졌습니다!`,
+          );
+        } catch (err) {
+          console.error("서버 요청 실패:", err);
+          alert("서버와의 통신 실패. 다시 시도해주세요.");
+        }
       } else {
         alert("먼저 지도 위에 다각형을 그려주세요!");
       }

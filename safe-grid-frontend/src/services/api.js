@@ -54,3 +54,24 @@ export async function getPlaceCongestion(poiId, lat = null, lng = null) {
 
   return apiRequest(endpoint, { method: "GET" });
 }
+
+export async function evaluateZoneRisk(zonePath) {
+  // 다각형 중심점 계산
+  const centerLat =
+    zonePath.reduce((sum, p) => sum + p.lat, 0) / zonePath.length;
+  const centerLng =
+    zonePath.reduce((sum, p) => sum + p.lng, 0) / zonePath.length;
+
+  return apiRequest("/api/v1/location", {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: "zone_analysis",
+      latitude: centerLat,
+      longitude: centerLng,
+      direction: 0.5,
+      d_skt: 0,
+      slope: 0,
+      weather: 0,
+    }),
+  });
+}
