@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
   Map,
   MapMarker,
@@ -6,16 +6,41 @@ import {
   ZoomControl,
   DrawingManager,
   useKakaoLoader,
-} from "react-kakao-maps-sdk"; // 🧹 안 쓰는 Polyline, CustomOverlayMap 도구도 깔끔하게 치웠습니다!
+} from "react-kakao-maps-sdk";
+import * as api from "./services/api";
 
 function App() {
   const [loading, error] = useKakaoLoader({
-    appkey: "22ff690840af34865670afb94e0d7c3a", // 본인 API KEY
+    appkey: import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY,
     libraries: ["clusterer", "drawing", "services"],
   });
 
   const managerRef = useRef(null);
   const [analyzedZones, setAnalyzedZones] = useState([]);
+
+  // 서버 API 호출
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const result = await api.updateLocation(latitude, longitude);
+          console.log("위치 전송 완료:", result);
+        } catch (err) {
+          console.error("위치 전송 실패:", err);
+        }
+      });
+    }
+
+    (async () => {
+      try {
+        const weather = await api.getDaeguWeather();
+        console.log("날씨 정보:", weather);
+      } catch (err) {
+        console.error("날씨 정보 조회 실패:", err);
+      }
+    })();
+  }, []);
 
   const selectDrawPolygon = () => {
     const manager = managerRef.current;
