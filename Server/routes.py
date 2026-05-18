@@ -5,7 +5,7 @@ import os
 from models import UserLocation
 from services.risk_handler import evaluate_location_risk
 from services.weather import fetch_daegu_weather_forecast
-from services.skt import get_place_congestion
+from services.skt import get_place_congestion, get_pois_list
 from settings import AppSettings, get_settings
 
 router = APIRouter()
@@ -24,6 +24,15 @@ async def get_daegu_weather(settings: AppSettings = Depends(get_settings)):
 @router.get("/api/v1/risk-map")
 async def get_risk_map():
     return {"grid_data": []}
+
+
+@router.get("/api/v1/pois")
+async def list_available_pois(
+    offset: int = Query(0),
+    limit: int = Query(100),
+    settings: AppSettings = Depends(get_settings),
+):
+    return await get_pois_list(settings, offset=offset, limit=limit)
 
 
 @router.get("/api/v1/congestion/{poi_id}")
