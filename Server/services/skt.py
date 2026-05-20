@@ -6,6 +6,43 @@ from fastapi import HTTPException
 from settings import AppSettings
 
 
+async def get_pois_list(settings: AppSettings, offset: int = 0, limit: int = 100) -> dict:
+    if not settings.skt_app_key:
+        raise HTTPException(status_code=500, detail="SKT_APP_KEY 환경변수가 설정되지 않았습니다.")
+
+    url = settings.skt_pois_url
+    headers = {"appKey": settings.skt_app_key, "Accept": "application/json"}
+    params = {"offset": offset, "limit": limit}
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            response = await client.get(url, headers=headers, params=params)
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"SKT API 요청 실패: {e.response.text}")
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=502, detail=f"SKT API 연결 오류: {str(e)}")
+
+    data = response.json()
+    status = data.get("status", {})
+    if status.get("code") != "00":
+        raise HTTPException(status_code=502, detail=f"SKT API 오류 - code: {status.get('code')}, message: {status.get('message')}")
+
+    contents = data.get("contents", [])
+    return {
+        "total_count": status.get("totalCount"),
+        "offset": offset,
+        "limit": limit,
+        "pois": [
+            {
+                "poi_id": item.get("poiId"),
+                "poi_name": item.get("poiName"),
+            }
+            for item in contents
+        ],
+    }
+
+
 async def get_place_congestion(settings: AppSettings, poi_id: str, lat: Optional[float] = None, lng: Optional[float] = None) -> dict:
     if not settings.skt_app_key:
         raise HTTPException(status_code=500, detail="SKT_APP_KEY 환경변수가 설정되지 않았습니다.")

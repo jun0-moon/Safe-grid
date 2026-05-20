@@ -13,6 +13,7 @@ load_dotenv(override=True)
 class AppSettings:
     skt_app_key: str
     skt_congestion_url: str
+    skt_pois_url: str
     kma_service_key: str
     kma_forecast_url: str
     daegu_nx: int
@@ -25,6 +26,7 @@ def get_settings() -> AppSettings:
     return AppSettings(
         skt_app_key=os.getenv("SKT_APP_KEY", ""),
         skt_congestion_url="https://apis.openapi.sk.com/puzzle/place/congestion/rltm/pois",
+        skt_pois_url="https://apis.openapi.sk.com/puzzle/place/meta/pois",
         kma_service_key=os.getenv("KMA_SERVICE_KEY", ""),
         kma_forecast_url="https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst",
         daegu_nx=int(os.getenv("DAEGU_NX", "89")),
