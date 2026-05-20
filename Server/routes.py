@@ -26,6 +26,7 @@ async def get_risk_map():
     return {"grid_data": []}
 
 
+# TODO: 백엔드에서 처리할 수 있도록 수정해야함
 @router.get("/api/v1/congestion/{poi_id}")
 async def get_place_congestion_route(
     poi_id: str,

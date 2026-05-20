@@ -5,7 +5,6 @@ from risk_engine import calculate_risk
 def evaluate_location_risk(data: UserLocation) -> dict:
     risk_score = calculate_risk(
         d_skt=data.d_skt,
-        vector=data.direction,
         slope=data.slope,
         weather=data.weather,
     )
