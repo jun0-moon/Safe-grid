@@ -8,7 +8,7 @@ from settings import AppSettings
 
 async def get_pois_list(settings: AppSettings, offset: int = 0, limit: int = 100) -> dict:
     if not settings.skt_app_key:
-        raise HTTPException(status_code=500, detail="SKT_APP_KEY í™˜ê²½ë³€ìˆ˜ê°€ ì„¤ì •ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤.")
+        raise HTTPException(status_code=500, detail="SKT_APP_KEY È¯°æ º¯¼ö°¡ ¼³Á¤µÇÁö ¾Ê¾Ò½À´Ï´Ù.")
 
     url = settings.skt_pois_url
     headers = {"appKey": settings.skt_app_key, "Accept": "application/json"}
@@ -19,33 +19,38 @@ async def get_pois_list(settings: AppSettings, offset: int = 0, limit: int = 100
             response = await client.get(url, headers=headers, params=params)
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail=f"SKT API ìš”ì²­ ì‹¤íŒ¨: {e.response.text}")
+            raise HTTPException(status_code=e.response.status_code, detail=f"SKT API È£Ãâ ¿À·ù: {e.response.text}")
         except httpx.RequestError as e:
-            raise HTTPException(status_code=502, detail=f"SKT API ì—°ê²° ì˜¤ë¥˜: {str(e)}")
+            raise HTTPException(status_code=502, detail=f"SKT API ¿¬°á ¿À·ù: {str(e)}")
 
     data = response.json()
     status = data.get("status", {})
     if status.get("code") != "00":
-        raise HTTPException(status_code=502, detail=f"SKT API ì˜¤ë¥˜ - code: {status.get('code')}, message: {status.get('message')}")
+        raise HTTPException(status_code=502, detail=f"SKT API ¿À·ù - code: {status.get('code')}, message: {status.get('message')}")
 
     contents = data.get("contents", [])
+    pois = []
+    for item in contents:
+        pois.append(
+            {
+                "poi_id": item.get("poiId"),
+                "poi_name": item.get("poiName"),
+                "latitude": item.get("latitude") or item.get("lat"),
+                "longitude": item.get("longitude") or item.get("lng"),
+            }
+        )
+
     return {
         "total_count": status.get("totalCount"),
         "offset": offset,
         "limit": limit,
-        "pois": [
-            {
-                "poi_id": item.get("poiId"),
-                "poi_name": item.get("poiName"),
-            }
-            for item in contents
-        ],
+        "pois": pois,
     }
 
 
 async def get_place_congestion(settings: AppSettings, poi_id: str, lat: Optional[float] = None, lng: Optional[float] = None) -> dict:
     if not settings.skt_app_key:
-        raise HTTPException(status_code=500, detail="SKT_APP_KEY í™˜ê²½ë³€ìˆ˜ê°€ ì„¤ì •ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤.")
+        raise HTTPException(status_code=500, detail="SKT_APP_KEY ??„¢??Â²Â½???????Â°? ??Â¤???????Â§? ??????????????Â¤.")
 
     url = f"{settings.skt_congestion_url}/{poi_id}"
     headers = {"appKey": settings.skt_app_key, "Accept": "application/json"}
@@ -60,32 +65,84 @@ async def get_place_congestion(settings: AppSettings, poi_id: str, lat: Optional
             response = await client.get(url, headers=headers, params=params)
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail=f"SKT API ìš”ì²­ ì‹¤íŒ¨: {e.response.text}")
+            raise HTTPException(status_code=e.response.status_code, detail=f"SKT API È£Ãâ ¿À·ù: {e.response.text}")
         except httpx.RequestError as e:
-            raise HTTPException(status_code=502, detail=f"SKT API ì—°ê²° ì˜¤ë¥˜: {str(e)}")
+            raise HTTPException(status_code=502, detail=f"SKT API ¿¬°á ¿À·ù: {str(e)}")
 
     data = response.json()
     status = data.get("status", {})
     if status.get("code") != "00":
-        raise HTTPException(status_code=502, detail=f"SKT API ì˜¤ë¥˜ - code: {status.get('code')}, message: {status.get('message')}")
+        raise HTTPException(status_code=502, detail=f"SKT API ¿À·ù - code: {status.get('code')}, message: {status.get('message')}")
 
     contents = data.get("contents", {})
     rltm_list = contents.get("rltm", [])
 
-    congestion_level_labels = {1: "ì—¬ìœ ", 2: "ë³´í†µ", 3: "í˜¼ìž¡", 4: "ë§¤ìš° í˜¼ìž¡"}
+    congestion_level_labels = {1: "¿©À¯", 2: "º¸Åë", 3: "È¥Àâ", 4: "¸Å¿ì È¥Àâ"}
 
     result = {
         "poi_id": contents.get("poiId"),
         "poi_name": contents.get("poiName"),
         "congestion_data": [
             {
-                "type": "ìž¥ì†Œ í˜¼ìž¡ë„" if item.get("type") == 1 else "ì£¼ë³€ í˜¼ìž¡ë„",
+                "type": "½Ç³» È¥Àâµµ" if item.get("type") == 1 else "½Ç¿Ü È¥Àâµµ",
                 "congestion": item.get("congestion"),
                 "congestion_level": item.get("congestionLevel"),
-                "congestion_label": congestion_level_labels.get(item.get("congestionLevel"), "ì•Œ ìˆ˜ ì—†ìŒ"),
+                "congestion_label": congestion_level_labels.get(item.get("congestionLevel"), "¾Ë ¼ö ¾øÀ½"),
                 "datetime": item.get("datetime"),
             }
             for item in rltm_list
         ],
     }
     return result
+
+def _squared_distance(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    return (lat1 - lat2) ** 2 + (lng1 - lng2) ** 2
+
+def estimate_density_from_congestion(congestion_data: list[dict]) -> float | None:
+    if not congestion_data:
+        return None
+    
+    latest = congestion_data[-1]
+    congestion = latest.get("congestion")
+    level = latest.get("congestion_level")
+
+    if congestion is not None:
+        try:
+            density = float(congestion)
+            if density <= 5:
+                return density
+            if density <= 100:
+                return round((density / 100.0) * 5.0, 4)
+        except (TypeError, ValueError):
+            pass
+
+    level_map = {1: 0.05, 2: 0.5, 3: 1.5, 4: 3.0}
+    if isinstance(level, int):
+        return level_map.get(level, 0.5)
+    try:
+        return level_map.get(int(level), 0.5)
+    except (TypeError, ValueError):
+        return None
+
+async def get_nearest_poi_id(settings: AppSettings, latitude: float, longitude: float) -> str | None:
+    pois_data = await get_pois_list(settings, offset=0, limit=100)
+    pois = [poi for poi in pois_data.get("pois", []) if poi.get("poi_id")]
+    if not pois:
+        return None
+
+    best_poi = None
+    best_dist = None
+    for poi in pois:
+        poi_lat = poi.get("latitude")
+        poi_lng = poi.get("longitude")
+        if poi_lat is None or poi_lng is None:
+            continue
+        dist = _squared_distance(latitude, longitude, float(poi_lat), float(poi_lng))
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best_poi = poi
+
+    if best_poi:
+        return best_poi["poi_id"]
+
+    return pois[0].get("poi_id")

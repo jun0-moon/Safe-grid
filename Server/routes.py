@@ -12,8 +12,8 @@ router = APIRouter()
 
 
 @router.post("/api/v1/location")
-async def update_location(data: UserLocation):
-    return evaluate_location_risk(data)
+async def update_location(data: UserLocation, settings: AppSettings = Depends(get_settings)):
+    return evaluate_location_risk(data, settings)
 
 
 @router.get("/api/v1/weather/daegu")
