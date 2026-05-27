@@ -50,6 +50,7 @@ def parse_weather_risk_and_summary(items: list[dict]) -> dict:
     pty = selected.get("PTY", "0")
     sky = selected.get("SKY", "1")
     temperature = selected.get("TMP")
+    humidity = selected.get("REH")
     wind_speed = selected.get("WSD")
 
     weather_risk = 0.0
@@ -79,6 +80,7 @@ def parse_weather_risk_and_summary(items: list[dict]) -> dict:
             "sky": sky_label_map.get(sky, "알 수 없음"),
             "precipitation": pty_label_map.get(pty, "알 수 없음"),
             "temperature_celsius": temperature,
+            "humidity_percent": humidity,
             "wind_speed_mps": wind_speed,
         },
         "forecast": [
@@ -87,6 +89,7 @@ def parse_weather_risk_and_summary(items: list[dict]) -> dict:
                 "sky": sky_label_map.get(data.get("SKY", ""), data.get("SKY")),
                 "precipitation": pty_label_map.get(data.get("PTY", "0"), data.get("PTY")),
                 "temperature_celsius": data.get("TMP"),
+                "humidity_percent": data.get("REH"),
                 "wind_speed_mps": data.get("WSD"),
             }
             for forecast_time, data in sorted(forecast_by_time.items())
@@ -137,6 +140,8 @@ async def fetch_daegu_weather_forecast(settings: AppSettings) -> dict:
         items = [items]
 
     parsed = parse_weather_risk_and_summary(items)
+    # 표시용으로 서버에서 실제로 데이터를 가져왔는지 여부 플래그 추가
+    parsed["fetched"] = True
     parsed.update(
         {
             "region": "대구",

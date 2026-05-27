@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import JSONResponse, Response, FileResponse
 import os
 
@@ -18,7 +18,46 @@ async def update_location(data: UserLocation):
 
 @router.get("/api/v1/weather/daegu")
 async def get_daegu_weather(settings: AppSettings = Depends(get_settings)):
-    return await fetch_daegu_weather_forecast(settings)
+    """Return Daegu weather via KMA. If fetching fails, return a safe fallback with 'fetched': False."""
+    try:
+        return await fetch_daegu_weather_forecast(settings)
+    except HTTPException:
+        # Safe fallback for frontend when KMA fails
+        return {
+            "weather_risk": 0.0,
+            "summary": {
+                "forecast_time": "",
+                "sky": "unknown",
+                "precipitation": "unknown",
+                "temperature_celsius": None,
+                "humidity_percent": None,
+                "wind_speed_mps": None,
+            },
+            "forecast": [],
+            "region": "Daegu",
+            "grid": {"nx": settings.daegu_nx, "ny": settings.daegu_ny},
+            "base_date": "",
+            "base_time": "",
+            "fetched": False,
+        }
+    except Exception:
+        return {
+            "weather_risk": 0.0,
+            "summary": {
+                "forecast_time": "",
+                "sky": "unknown",
+                "precipitation": "unknown",
+                "temperature_celsius": None,
+                "humidity_percent": None,
+                "wind_speed_mps": None,
+            },
+            "forecast": [],
+            "region": "Daegu",
+            "grid": {"nx": settings.daegu_nx, "ny": settings.daegu_ny},
+            "base_date": "",
+            "base_time": "",
+            "fetched": False,
+        }
 
 
 @router.get("/api/v1/risk-map")
@@ -26,7 +65,6 @@ async def get_risk_map():
     return {"grid_data": []}
 
 
-# TODO: 백엔드에서 처리할 수 있도록 수정해야함
 @router.get("/api/v1/pois")
 async def list_available_pois(
     offset: int = Query(0),
@@ -36,7 +74,6 @@ async def list_available_pois(
     return await get_pois_list(settings, offset=offset, limit=limit)
 
 
-# TODO: 백엔드에서 처리할 수 있도록 수정해야함
 @router.get("/api/v1/congestion/{poi_id}")
 async def get_place_congestion_route(
     poi_id: str,

@@ -29,10 +29,17 @@ async function apiRequest(endpoint, options = {}) {
   }
 }
 
-export async function updateLocation(latitude, longitude) {
+export async function updateLocation(latitude, longitude, payload = {}) {
   return apiRequest("/api/v1/location", {
     method: "POST",
-    body: JSON.stringify({ latitude, longitude }),
+    body: JSON.stringify({
+      user_id: payload.user_id ?? "zone_analysis",
+      latitude,
+      longitude,
+      ...(payload.d_skt !== undefined ? { d_skt: payload.d_skt } : {}),
+      ...(payload.slope !== undefined ? { slope: payload.slope } : {}),
+      ...(payload.weather !== undefined ? { weather: payload.weather } : {}),
+    }),
   });
 }
 
@@ -55,8 +62,24 @@ export async function getPlaceCongestion(poiId, lat = null, lng = null) {
   return apiRequest(endpoint, { method: "GET" });
 }
 
+export async function analyzeZone(zonePath, areaSqm) {
+  const centerLat =
+    zonePath.reduce((sum, p) => sum + p.lat, 0) / zonePath.length;
+  const centerLng =
+    zonePath.reduce((sum, p) => sum + p.lng, 0) / zonePath.length;
+
+  return apiRequest("/api/v1/zone-analysis", {
+    method: "POST",
+    body: JSON.stringify({
+      latitude: centerLat,
+      longitude: centerLng,
+      area_m2: areaSqm,
+    }),
+  });
+}
+
 export async function evaluateZoneRisk(zonePath) {
-  // ´Ù°¢Çü Áß½ÉÁ¡ °è»ê
+  // ï¿½Ù°ï¿½ï¿½ï¿½ ï¿½ß½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
   const centerLat =
     zonePath.reduce((sum, p) => sum + p.lat, 0) / zonePath.length;
   const centerLng =

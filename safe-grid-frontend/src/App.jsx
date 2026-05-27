@@ -6,6 +6,7 @@ import {
   ZoomControl,
   DrawingManager,
 } from "react-kakao-maps-sdk";
+import { getDaeguWeather, updateLocation } from "./services/api";
 
 function App() {
   const managerRef = useRef(null);
@@ -52,64 +53,104 @@ function App() {
     }
   };
 
-  const getCongestionLevelInfo = (density) => {
-    if (density < 0.025) {
+  const getRiskLevelInfo = (riskScore) => {
+    if (riskScore < 0.2) {
       return {
         level: "1단계",
         risk: "안전",
         color: "#28a745",
-        desc: "전방 시야가 트인 상태",
+        desc: "위험도가 낮은 상태",
       };
-    } else if (density >= 0.025 && density < 0.05) {
+    } else if (riskScore < 0.45) {
       return {
-        level: "주의",
+        level: "2단계",
         risk: "주의",
         color: "#ffc107",
-        desc: "전방 시야가 다소 막히는 상태",
+        desc: "주의가 필요한 상태",
       };
-    } else if (density >= 0.05 && density < 0.3) {
+    } else if (riskScore < 0.7) {
       return {
         level: "3단계",
         risk: "경계",
         color: "#fd7e14",
-        desc: "서로 부딪힐 수 있는 상태",
+        desc: "혼잡 또는 기상 영향이 커지는 상태",
       };
     } else {
       return {
         level: "4단계",
         risk: "위험",
         color: "#dc3545",
-        desc: "매우 혼잡하여 불쾌할 수 있는 상태",
+        desc: "즉시 주의가 필요한 상태",
       };
     }
   };
 
-  const generateMockWeatherData = () => {
-    const weatherTypes = [
-      { status: "맑음", icon: "☀️" },
-      { status: "구름 많음", icon: "⛅" },
-      { status: "흐림", icon: "☁️" },
-      { status: "비", icon: "🌧️" },
-    ];
-    const randomWeather =
-      weatherTypes[Math.floor(Math.random() * weatherTypes.length)];
+  const getWeatherIcon = (sky, precipitation) => {
+    if (precipitation && precipitation !== "없음") {
+      if (precipitation.includes("눈")) {
+        return "🌨️";
+      }
+      if (precipitation.includes("비")) {
+        return "🌧️";
+      }
+      return "🌦️";
+    }
+
+    if (sky === "맑음") {
+      return "☀️";
+    }
+
+    if (sky === "구름많음") {
+      return "⛅";
+    }
+
+    if (sky === "흐림") {
+      return "☁️";
+    }
+
+    return "🌤️";
+  };
+
+  const formatWeatherData = (weatherResult) => {
+    const summary = weatherResult?.summary ?? {};
+    const sky = summary.sky ?? "알 수 없음";
+    const precipitation = summary.precipitation ?? "알 수 없음";
+    const fetched = weatherResult?.fetched ?? true;
+    const statusSuffix = fetched ? "" : " (서버 실패)";
 
     return {
-      temperature: (Math.random() * 15 + 10).toFixed(1),
-      humidity: Math.floor(Math.random() * 40 + 40),
-      windSpeed: (Math.random() * 5).toFixed(1),
-      condition: randomWeather,
+      condition: {
+        sky,
+        precipitation,
+        status: `${sky}${statusSuffix}`,
+        precipitationStatus: precipitation,
+        icon: getWeatherIcon(sky, precipitation),
+      },
+      temperature: summary.temperature_celsius ?? "-",
+      humidity: summary.humidity_percent ?? "-",
+      windSpeed: summary.wind_speed_mps ?? "-",
+      weatherRisk: weatherResult?.weather_risk ?? 0,
     };
   };
 
-  const getRectangleData = () => {
+  const formatWeatherFallback = () => ({
+    condition: {
+      status: "날씨 조회 실패",
+      icon: "⚠️",
+    },
+    temperature: "-",
+    humidity: "-",
+    windSpeed: "-",
+    weatherRisk: 0,
+  });
+
+  const getRectangleData = async () => {
     const manager = managerRef.current;
     if (manager) {
       const data = manager.getData();
       const rectData = data[window.kakao.maps.drawing.OverlayType.RECTANGLE];
 
       if (rectData && rectData.length > 0) {
-        // 💡 [해결 2] 무조건 '가장 마지막에 새로 그린 사각형'을 가져오게 변경
         const rect = rectData[rectData.length - 1];
         const start = rect.sPoint;
         const end = rect.ePoint;
@@ -121,14 +162,35 @@ function App() {
           { lat: end.y, lng: start.x },
         ];
 
+        const centerLat = (start.y + end.y) / 2;
+        const centerLng = (start.x + end.x) / 2;
         const simulatedPeopleCount = Math.floor(Math.random() * 1000) + 50;
         const simulatedArea = Math.floor(Math.random() * 10000) + 1000;
+        const calculatedDensity = Number(
+          (simulatedPeopleCount / simulatedArea).toFixed(3),
+        );
 
-        const calculatedDensity = (
-          simulatedPeopleCount / simulatedArea
-        ).toFixed(3);
-        const levelInfo = getCongestionLevelInfo(calculatedDensity);
-        const simulatedWeather = generateMockWeatherData();
+        let weather = formatWeatherFallback();
+        try {
+          const weatherResult = await getDaeguWeather();
+          weather = formatWeatherData(weatherResult);
+        } catch (error) {
+          console.error("날씨 정보를 불러오지 못했습니다.", error);
+        }
+
+        let locationRisk = { risk_score: 0 };
+        try {
+          locationRisk = await updateLocation(centerLat, centerLng, {
+            user_id: "zone_analysis",
+            d_skt: calculatedDensity,
+            slope: 0,
+            weather: weather.weatherRisk,
+          });
+        } catch (error) {
+          console.error("위험도 정보를 불러오지 못했습니다.", error);
+        }
+
+        const levelInfo = getRiskLevelInfo(locationRisk.risk_score ?? 0);
 
         const newZoneData = {
           id: Date.now(),
@@ -136,15 +198,15 @@ function App() {
           color: levelInfo.color,
           count: simulatedPeopleCount,
           area: simulatedArea,
-          density: calculatedDensity,
-          levelInfo: levelInfo,
-          weather: simulatedWeather,
+          density: calculatedDensity.toFixed(3),
+          levelInfo,
+          weather,
+          riskScore: locationRisk.risk_score ?? 0,
         };
 
         setAnalyzedZones((prev) => [...prev, newZoneData]);
         setSelectedZone(newZoneData);
 
-        // 💡 [해결 3] 추출이 성공적으로 끝났으면, 원본 파란색 스케치를 알아서 삭제해버림! (X 누를 필요 없음)
         const overlays =
           manager.getOverlays()[
             window.kakao.maps.drawing.OverlayType.RECTANGLE
@@ -355,7 +417,7 @@ function App() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    marginBottom: "10px",
+                    marginBottom: "8px",
                   }}
                 >
                   <span style={{ fontSize: "24px", marginRight: "10px" }}>
@@ -364,6 +426,20 @@ function App() {
                   <strong style={{ fontSize: "15px" }}>
                     {selectedZone.weather.condition.status}
                   </strong>
+                </div>
+                <div
+                  style={{
+                    marginBottom: "10px",
+                    fontSize: "13px",
+                    color: "#495057",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <div>하늘 상태: {selectedZone.weather.condition.sky}</div>
+                  <div>
+                    강수 상태:{" "}
+                    {selectedZone.weather.condition.precipitationStatus}
+                  </div>
                 </div>
                 <div
                   style={{
